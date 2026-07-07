@@ -1,0 +1,953 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, maximum-scale=1.0">
+    <title>Balloon Pop Kids</title>
+    <style>
+        /* --- Reset & Base Styles --- */
+        * {
+            box-sizing: border-box;
+            user-select: none;
+            -webkit-user-select: none;
+            margin: 0;
+            padding: 0;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        body, html {
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background-color: #87CEEB;
+            font-family: 'Comic Sans MS', 'Chalkboard SE', 'Fredoka One', system-ui, sans-serif;
+        }
+
+        /* --- Game Container --- */
+        #game-container {
+            position: relative;
+            width: 100%;
+            height: 100%;
+            max-width: 600px; /* Perfect for Blogger embedding and mobile aspect ratio */
+            margin: 0 auto;
+            overflow: hidden;
+            box-shadow: 0 0 30px rgba(0,0,0,0.2);
+            background: linear-gradient(to bottom, #7cd1f7 0%, #bce6ff 60%, #e0f4ff 100%);
+        }
+
+        /* --- Canvas Layer --- */
+        canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 1;
+            display: block;
+        }
+
+        /* --- UI Overlay Layer --- */
+        .ui-layer {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 2;
+            pointer-events: none;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            padding: 15px;
+        }
+
+        /* --- HUD Panel --- */
+        .hud-container {
+            display: flex;
+            justify-content: space-between;
+            width: 100%;
+            pointer-events: auto;
+        }
+
+        .hud-card {
+            background: rgba(255, 255, 255, 0.25);
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
+            border: 2px solid rgba(255, 255, 255, 0.4);
+            border-radius: 16px;
+            padding: 8px 16px;
+            color: #2c3e50;
+            font-weight: bold;
+            font-size: 1.1rem;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-width: 90px;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.05);
+            text-shadow: 1px 1px 0px rgba(255,255,255,0.6);
+        }
+
+        .hud-label {
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: #576574;
+            margin-bottom: 2px;
+        }
+
+        .hud-value {
+            font-size: 1.4rem;
+            color: #d63031;
+        }
+        
+        #hud-score .hud-value { color: #0984e3; }
+        #hud-timer .hud-value { color: #d63031; }
+        #hud-combo .hud-value { color: #e17055; }
+
+        #hud-combo {
+            transform: scale(0);
+            transition: transform 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+
+        #hud-combo.active {
+            transform: scale(1);
+        }
+
+        /* --- Screens (Glassmorphism Modal Panels) --- */
+        .screen-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 10;
+            background: rgba(135, 206, 235, 0.4);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+            transition: opacity 0.3s ease, visibility 0.3s ease;
+        }
+
+        .hidden {
+            opacity: 0;
+            visibility: hidden;
+            pointer-events: none;
+        }
+
+        .menu-panel {
+            width: 90%;
+            max-width: 400px;
+            background: rgba(255, 255, 255, 0.75);
+            border: 4px solid #ffffff;
+            border-radius: 32px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.15), inset 0 0 20px rgba(255,255,255,0.6);
+            padding: 35px 25px;
+            text-align: center;
+            transform: translateY(0);
+            animation: floatPanel 4s ease-in-out infinite;
+        }
+
+        @keyframes floatPanel {
+            0%, 100% { transform: translateY(0px); }
+            50% { transform: translateY(-10px); }
+        }
+
+        /* --- Typography & Buttons --- */
+        h1 {
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+            color: #ff4757;
+            text-shadow: 3px 3px 0px #fff, 5px 5px 0px rgba(0,0,0,0.1);
+            line-height: 1.2;
+        }
+
+        .game-title span:nth-child(1) { color: #ff4757; }
+        .game-title span:nth-child(2) { color: #ffa502; }
+        .game-title span:nth-child(3) { color: #2ed573; }
+        .game-title span:nth-child(4) { color: #1e90ff; }
+        .game-title span:nth-child(5) { color: #9b59b6; }
+
+        p.subtitle {
+            font-size: 1.1rem;
+            color: #57606f;
+            margin-bottom: 30px;
+            font-weight: bold;
+        }
+
+        .stats-display {
+            background: rgba(255, 255, 255, 0.6);
+            border-radius: 20px;
+            padding: 15px;
+            margin-bottom: 30px;
+            border: 1px solid rgba(255,255,255,0.8);
+        }
+
+        .stat-line {
+            display: flex;
+            justify-content: space-between;
+            font-size: 1.2rem;
+            color: #2f3542;
+            margin: 8px 0;
+            font-weight: bold;
+        }
+        
+        .stat-line span:last-child {
+            color: #ff4757;
+            font-size: 1.4rem;
+        }
+
+        .stat-line.high-score-line span:last-child {
+            color: #2ed573;
+        }
+
+        .btn {
+            pointer-events: auto;
+            display: inline-block;
+            width: 100%;
+            padding: 16px 32px;
+            font-size: 1.6rem;
+            font-weight: bold;
+            color: white;
+            text-transform: uppercase;
+            background: linear-gradient(135deg, #ff4757, #ff6b81);
+            border: none;
+            border-radius: 50px;
+            cursor: pointer;
+            box-shadow: 0 8px 0px #cf2131, 0 15px 20px rgba(255, 71, 87, 0.4);
+            transition: transform 0.1s, box-shadow 0.1s;
+            text-shadow: 1px 2px 2px rgba(0,0,0,0.2);
+        }
+
+        .btn:active {
+            transform: translateY(4px);
+            box-shadow: 0 4px 0px #cf2131, 0 8px 10px rgba(255, 71, 87, 0.4);
+        }
+
+        .btn-green {
+            background: linear-gradient(135deg, #2ed573, #7bed9f);
+            box-shadow: 0 8px 0px #20a855, 0 15px 20px rgba(46, 213, 115, 0.4);
+        }
+        
+        .btn-green:active {
+            box-shadow: 0 4px 0px #20a855, 0 8px 10px rgba(46, 213, 115, 0.4);
+        }
+    </style>
+</head>
+<body>
+
+    <div id="game-container">
+        <canvas id="gameCanvas"></canvas>
+
+        <div class="ui-layer">
+            <div class="hud-container">
+                <div id="hud-score" class="hud-card">
+                    <span class="hud-label">Score</span>
+                    <span class="hud-value" id="score-val">0</span>
+                </div>
+                <div id="hud-combo" class="hud-card">
+                    <span class="hud-label">Combo</span>
+                    <span class="hud-value" id="combo-val">x2</span>
+                </div>
+                <div id="hud-timer" class="hud-card">
+                    <span class="hud-label">Time</span>
+                    <span class="hud-value" id="timer-val">60</span>
+                </div>
+            </div>
+        </div>
+
+        <div id="start-screen" class="screen-overlay">
+            <div class="menu-panel">
+                <h1 class="game-title">
+                    <span>B</span><span>a</span><span>l</span><span>l</span><span>o</span><span>o</span><span>n</span>
+                    <br>
+                    <span>P</span><span>o</span><span>p</span> <span>K</span><span>i</span><span>d</span><span>s</span>
+                </h1>
+                <p class="subtitle">Pop balloons for high scores!</p>
+                <div class="stats-display">
+                    <div class="stat-line high-score-line">
+                        <span>Best Score:</span>
+                        <span id="start-highscore-val">0</span>
+                    </div>
+                </div>
+                <button id="btn-play" class="btn btn-green">Play</button>
+            </div>
+        </div>
+
+        <div id="gameover-screen" class="screen-overlay hidden">
+            <div class="menu-panel">
+                <h1>Game Over!</h1>
+                <p class="subtitle">Fantastic Popping Skillz!</p>
+                <div class="stats-display">
+                    <div class="stat-line">
+                        <span>Your Score:</span>
+                        <span id="final-score-val">0</span>
+                    </div>
+                    <div class="stat-line high-score-line">
+                        <span>High Score:</span>
+                        <span id="end-highscore-val">0</span>
+                    </div>
+                </div>
+                <button id="btn-restart" class="btn">Play Again</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        (function() {
+            // --- Architecture Settings & Elements ---
+            const canvas = document.getElementById('gameCanvas');
+            const ctx = canvas.getContext('2d');
+            
+            const startScreen = document.getElementById('start-screen');
+            const gameoverScreen = document.getElementById('gameover-screen');
+            const btnPlay = document.getElementById('btn-play');
+            const btnRestart = document.getElementById('btn-restart');
+            
+            const scoreValText = document.getElementById('score-val');
+            const timerValText = document.getElementById('timer-val');
+            const comboContainer = document.getElementById('hud-combo');
+            const comboValText = document.getElementById('combo-val');
+            const startHighScoreText = document.getElementById('start-highscore-val');
+            const endHighScoreText = document.getElementById('end-highscore-val');
+            const finalScoreText = document.getElementById('final-score-val');
+
+            // --- Game Context Properties ---
+            let gameState = 'START'; // START, PLAYING, GAMEOVER
+            let score = 0;
+            let highScore = parseInt(localStorage.getItem('bpop_highscore')) || 0;
+            let timeRemaining = 60;
+            let gameTimerInterval = null;
+            
+            let balloons = [];
+            let particles = [];
+            let floatingTexts = [];
+            let sceneryElements = { clouds: [], butterflies: [], birds: [] };
+            
+            let lastSpawnTime = 0;
+            let spawnInterval = 1200; // Starting rate in ms
+            let baseSpeed = 1.5;
+            let timeElapsed = 0;
+
+            let lastPopTime = 0;
+            let comboCount = 0;
+            const COMBO_THRESHOLD = 800; // ms to chain popping events
+
+            // --- Color Configuration Engine ---
+            const BALLOON_COLORS = [
+                { hex: '#ff4757', highlight: '#ff6b81', string: '#e84118' }, // Red
+                { hex: '#1e90ff', highlight: '#70a1ff', string: '#00a8ff' }, // Blue
+                { hex: '#ffa502', highlight: '#ff7f50', string: '#eccc68' }, // Yellow
+                { hex: '#2ed573', highlight: '#7bed9f', string: '#26de81' }, // Green
+                { hex: '#ef57ac', highlight: '#f3a3d3', string: '#d83a8f' }, // Pink
+                { hex: '#9b59b6', highlight: '#c39bd3', string: '#8e44ad' }, // Purple
+                { hex: '#ff7f50', highlight: '#ff9f43', string: '#d35400' }  // Orange
+            ];
+
+            startHighScoreText.textContent = highScore;
+
+            // --- Native Web Audio Synthesis Architecture ---
+            const AudioEngine = {
+                ctx: null,
+                init() {
+                    if (!this.ctx) {
+                        this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+                    }
+                },
+                playPop() {
+                    this.init();
+                    if (!this.ctx) return;
+                    
+                    let osc = this.ctx.createOscillator();
+                    let gain = this.ctx.createGain();
+                    
+                    osc.connect(gain);
+                    gain.connect(this.ctx.destination);
+                    
+                    osc.type = 'sine';
+                    // Fast pitch drop mimics structural burst mechanics
+                    osc.frequency.setValueAtTime(400, this.ctx.currentTime);
+                    osc.frequency.exponentialRampToValueAtTime(60, this.ctx.currentTime + 0.08);
+                    
+                    gain.gain.setValueAtTime(0.4, this.ctx.currentTime);
+                    gain.gain.linearRampToValueAtTime(0.01, this.ctx.currentTime + 0.08);
+                    
+                    osc.start();
+                    osc.stop(this.ctx.currentTime + 0.08);
+                },
+                playUi() {
+                    this.init();
+                    if (!this.ctx) return;
+                    
+                    let osc = this.ctx.createOscillator();
+                    let gain = this.ctx.createGain();
+                    
+                    osc.connect(gain);
+                    gain.connect(this.ctx.destination);
+                    
+                    osc.type = 'triangle';
+                    osc.frequency.setValueAtTime(300, this.ctx.currentTime);
+                    osc.frequency.exponentialRampToValueAtTime(600, this.ctx.currentTime + 0.15);
+                    
+                    gain.gain.setValueAtTime(0.2, this.ctx.currentTime);
+                    gain.gain.linearRampToValueAtTime(0.01, this.ctx.currentTime + 0.15);
+                    
+                    osc.start();
+                    osc.stop(this.ctx.currentTime + 0.15);
+                }
+            };
+
+            // --- Adaptive Display Canvas Scaler ---
+            function resizeCanvas() {
+                const container = document.getElementById('game-container');
+                canvas.width = container.clientWidth;
+                canvas.height = container.clientHeight;
+                
+                // Initialize environmental systems if empty
+                if(sceneryElements.clouds.length === 0) {
+                    initScenery();
+                }
+            }
+            window.addEventListener('resize', resizeCanvas);
+            resizeCanvas();
+
+            // --- Background Scenery Generators ---
+            function initScenery() {
+                sceneryElements.clouds = [
+                    { x: canvas.width * 0.1, y: canvas.height * 0.12, scale: 0.6, speed: 0.2 },
+                    { x: canvas.width * 0.5, y: canvas.height * 0.06, scale: 0.9, speed: 0.3 },
+                    { x: canvas.width * 0.8, y: canvas.height * 0.18, scale: 0.5, speed: 0.15 }
+                ];
+                sceneryElements.butterflies = [
+                    { x: canvas.width * 0.2, y: canvas.height * 0.85, angle: 0, speed: 0.5, size: 8 },
+                    { x: canvas.width * 0.7, y: canvas.height * 0.9, angle: Math.PI, speed: 0.4, size: 7 }
+                ];
+                sceneryElements.birds = [
+                    { x: canvas.width + 50, y: canvas.height * 0.25, speed: 0.8, flap: 0, size: 12 }
+                ];
+            }
+
+            // --- Class Definitions for Game Objects ---
+            class Balloon {
+                constructor() {
+                    this.radius = Math.random() * (35 - 22) + 22; // Varied dimensions
+                    this.x = Math.random() * (canvas.width - this.radius * 2) + this.radius;
+                    this.y = canvas.height + this.radius + 20;
+                    this.colorData = BALLOON_COLORS[Math.floor(Math.random() * BALLOON_COLORS.length)];
+                    
+                    // Small balloons run faster, larger ones run slower
+                    const sizeFactor = (35 - this.radius) / (35 - 22);
+                    this.speed = baseSpeed + (sizeFactor * 1.5) + Math.random() * 0.5;
+                    
+                    // Values map inversely to target surface area
+                    this.points = Math.round((40 - this.radius) * 0.8);
+                    
+                    this.swaySpeed = Math.random() * 0.02 + 0.01;
+                    this.swayRange = Math.random() * 15 + 5;
+                    this.swayOffset = Math.random() * 100;
+                    this.wobbleX = 0;
+                }
+
+                update(time) {
+                    this.y -= this.speed;
+                    this.wobbleX = Math.sin(time * this.swaySpeed + this.swayOffset) * this.swayRange;
+                }
+
+                draw() {
+                    ctx.save();
+                    ctx.translate(this.x + this.wobbleX, this.y);
+
+                    // Draw Balloon Rigging (String)
+                    ctx.beginPath();
+                    ctx.moveTo(0, this.radius);
+                    ctx.quadraticCurveTo(Math.sin(this.y * 0.05) * 8, this.radius + 20, 0, this.radius + 45);
+                    ctx.strokeStyle = '#a4b0be';
+                    ctx.lineWidth = 1.5;
+                    ctx.stroke();
+
+                    // Lower Base Tie Knot
+                    ctx.beginPath();
+                    ctx.moveTo(-4, this.radius);
+                    ctx.lineTo(4, this.radius);
+                    ctx.lineTo(0, this.radius + 6);
+                    ctx.closePath();
+                    ctx.fillStyle = this.colorData.string;
+                    ctx.fill();
+
+                    // Air Reservoir Base Body
+                    ctx.beginPath();
+                    ctx.ellipse(0, 0, this.radius * 0.88, this.radius, 0, 0, Math.PI * 2);
+                    
+                    let gradient = ctx.createRadialGradient(
+                        -this.radius * 0.2, -this.radius * 0.3, this.radius * 0.1,
+                        0, 0, this.radius
+                    );
+                    gradient.addColorStop(0, this.colorData.highlight);
+                    gradient.addColorStop(0.6, this.colorData.hex);
+                    gradient.addColorStop(1, this.colorData.string);
+                    
+                    ctx.fillStyle = gradient;
+                    ctx.fill();
+
+                    // High Elasticity Glare Reflection Rim
+                    ctx.beginPath();
+                    ctx.ellipse(-this.radius * 0.35, -this.radius * 0.45, this.radius * 0.2, this.radius * 0.35, Math.PI / 6, 0, Math.PI * 2);
+                    ctx.fillStyle = 'rgba(255, 255, 255, 0.65)';
+                    ctx.fill();
+
+                    ctx.restore();
+                }
+
+                isHit(tx, ty) {
+                    const actualX = this.x + this.wobbleX;
+                    const distance = Math.hypot(tx - actualX, ty - this.y);
+                    // Standard structural margin expanded by 12px for optimized target parsing on touch-screens
+                    return distance < (this.radius + 12);
+                }
+            }
+
+            class Particle {
+                constructor(x, y, color) {
+                    this.x = x;
+                    this.y = y;
+                    this.color = color;
+                    this.radius = Math.random() * 4 + 2;
+                    const angle = Math.random() * Math.PI * 2;
+                    const speed = Math.random() * 6 + 2;
+                    this.vx = Math.cos(angle) * speed;
+                    this.vy = Math.sin(angle) * speed;
+                    this.alpha = 1;
+                    this.gravity = 0.15;
+                }
+
+                update() {
+                    this.x += this.vx;
+                    this.y += this.vy;
+                    this.vy += this.gravity;
+                    this.alpha -= 0.025;
+                }
+
+                draw() {
+                    ctx.save();
+                    ctx.globalAlpha = Math.max(0, this.alpha);
+                    ctx.beginPath();
+                    ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+                    ctx.fillStyle = this.color;
+                    ctx.fill();
+                    ctx.restore();
+                }
+            }
+
+            class FloatingText {
+                constructor(x, y, text, color, isCombo = false) {
+                    this.x = x;
+                    this.y = y;
+                    this.text = text;
+                    this.color = color;
+                    this.alpha = 1;
+                    this.scale = isCombo ? 1.4 : 1.0;
+                    this.speedY = isCombo ? -1.5 : -2;
+                }
+
+                update() {
+                    this.y += this.speedY;
+                    this.alpha -= 0.02;
+                }
+
+                draw() {
+                    ctx.save();
+                    ctx.globalAlpha = Math.max(0, this.alpha);
+                    ctx.font = `bold ${this.scale * 1.5}rem 'Comic Sans MS', sans-serif`;
+                    ctx.textAlign = 'center';
+                    ctx.fillStyle = this.color;
+                    ctx.strokeStyle = '#ffffff';
+                    ctx.lineWidth = 4;
+                    ctx.strokeText(this.text, this.x, this.y);
+                    ctx.fillText(this.text, this.x, this.y);
+                    ctx.restore();
+                }
+            }
+
+            // --- Decorative Background Painting Suite ---
+            function drawScenery(time) {
+                // 1. Rainbow Arc Framework
+                ctx.save();
+                const rbX = canvas.width / 2;
+                const rbY = 160;
+                const colors = ['#ff4757', '#ffa502', '#ffda79', '#2ed573', '#1e90ff', '#9b59b6'];
+                ctx.lineWidth = 6;
+                ctx.globalAlpha = 0.35;
+                for (let i = 0; i < colors.length; i++) {
+                    ctx.beginPath();
+                    ctx.arc(rbX, rbY, 120 + (i * 6), Math.PI, 0, false);
+                    ctx.strokeStyle = colors[i];
+                    ctx.stroke();
+                }
+                ctx.restore();
+
+                // 2. Animated Fluffy Clouds
+                ctx.fillStyle = 'rgba(255, 255, 255, 0.85)';
+                sceneryElements.clouds.forEach(cloud => {
+                    cloud.x += cloud.speed;
+                    if (cloud.x - 100 * cloud.scale > canvas.width) {
+                        cloud.x = -120 * cloud.scale;
+                    }
+                    
+                    ctx.save();
+                    ctx.translate(cloud.x, cloud.y);
+                    ctx.scale(cloud.scale, cloud.scale);
+                    ctx.beginPath();
+                    ctx.arc(0, 0, 30, 0, Math.PI * 2);
+                    ctx.arc(25, -10, 35, 0, Math.PI * 2);
+                    ctx.arc(55, 0, 25, 0, Math.PI * 2);
+                    ctx.arc(25, 15, 30, 0, Math.PI * 2);
+                    ctx.closePath();
+                    ctx.fill();
+                    ctx.restore();
+                });
+
+                // 3. Smiling Sun Configuration
+                ctx.save();
+                ctx.translate(canvas.width - 60, 70);
+                ctx.rotate(time * 0.002);
+                ctx.fillStyle = '#ffa502';
+                // Rays
+                for (let i = 0; i < 8; i++) {
+                    ctx.rotate(Math.PI / 4);
+                    ctx.fillRect(-5, -45, 10, 15);
+                }
+                ctx.restore();
+                
+                // Core Orb & Face Expression
+                ctx.save();
+                ctx.translate(canvas.width - 60, 70);
+                ctx.beginPath();
+                ctx.arc(0, 0, 35, 0, Math.PI * 2);
+                ctx.fillStyle = '#ffb142';
+                ctx.fill();
+                // Eyes
+                ctx.fillStyle = '#2f3542';
+                ctx.beginPath();
+                ctx.arc(-10, -5, 3, 0, Math.PI * 2);
+                ctx.arc(10, -5, 3, 0, Math.PI * 2);
+                ctx.fill();
+                // Smile
+                ctx.beginPath();
+                ctx.arc(0, 5, 12, 0, Math.PI, false);
+                ctx.strokeStyle = '#2f3542';
+                ctx.lineWidth = 3;
+                ctx.stroke();
+                ctx.restore();
+
+                // 4. Ground Foundation (Grass & Foliage Layer)
+                ctx.save();
+                // Lower hill layer
+                ctx.beginPath();
+                ctx.ellipse(canvas.width * 0.3, canvas.height + 40, canvas.width * 0.6, 120, 0, 0, Math.PI * 2);
+                ctx.fillStyle = '#26de81';
+                ctx.fill();
+
+                // Upper primary hill
+                ctx.beginPath();
+                ctx.ellipse(canvas.width * 0.7, canvas.height + 50, canvas.width * 0.7, 130, 0, 0, Math.PI * 2);
+                ctx.fillStyle = '#2ed573';
+                ctx.fill();
+
+                // Abstract Trees
+                drawTree(canvas.width * 0.12, canvas.height - 60, 45);
+                drawTree(canvas.width * 0.88, canvas.height - 75, 55);
+
+                // Flora Configurations (Flowers)
+                drawFlower(canvas.width * 0.35, canvas.height - 25, '#ff4757');
+                drawFlower(canvas.width * 0.45, canvas.height - 15, '#ffa502');
+                drawFlower(canvas.width * 0.62, canvas.height - 30, '#ef57ac');
+                drawFlower(canvas.width * 0.75, canvas.height - 20, '#1e90ff');
+
+                // 5. Active Micro-Fauna Ecosystem (Butterflies & Birds)
+                sceneryElements.butterflies.forEach(bf => {
+                    bf.x += Math.sin(time * 0.01 + bf.angle) * 0.6;
+                    bf.y -= bf.speed * 0.3;
+                    if(bf.y < canvas.height - 180) bf.y = canvas.height - 20;
+
+                    ctx.save();
+                    ctx.translate(bf.x, bf.y);
+                    const wingFlap = Math.sin(time * 0.08);
+                    ctx.fillStyle = '#ff7f50';
+                    ctx.beginPath();
+                    ctx.ellipse(-bf.size * 0.6 * wingFlap, -bf.size * 0.5, bf.size * 0.6 * Math.abs(wingFlap), bf.size, Math.PI/4, 0, Math.PI*2);
+                    ctx.ellipse(bf.size * 0.6 * wingFlap, -bf.size * 0.5, bf.size * 0.6 * Math.abs(wingFlap), bf.size, -Math.PI/4, 0, Math.PI*2);
+                    ctx.fill();
+                    ctx.fillStyle = '#2f3542';
+                    ctx.fillRect(-1, -bf.size, 2, bf.size * 1.5);
+                    ctx.restore();
+                });
+
+                let bird = sceneryElements.birds[0];
+                bird.x -= bird.speed;
+                bird.flap = Math.sin(time * 0.15) * 6;
+                if(bird.x < -40) {
+                    bird.x = canvas.width + 60;
+                    bird.y = Math.random() * (canvas.height * 0.4) + 60;
+                }
+                ctx.save();
+                ctx.translate(bird.x, bird.y);
+                ctx.beginPath();
+                ctx.moveTo(-bird.size, bird.flap);
+                ctx.quadraticCurveTo(-bird.size/2, -bird.size + bird.flap/2, 0, 0);
+                ctx.quadraticCurveTo(bird.size/2, -bird.size + bird.flap/2, bird.size, bird.flap);
+                ctx.strokeStyle = '#57606f';
+                ctx.lineWidth = 3;
+                ctx.stroke();
+                ctx.restore();
+
+                ctx.restore();
+            }
+
+            function drawTree(x, y, size) {
+                ctx.save();
+                // Trunk
+                ctx.fillStyle = '#a4b0be';
+                ctx.fillRect(x - size * 0.1, y, size * 0.2, size);
+                // Canopy foliage
+                ctx.beginPath();
+                ctx.arc(x, y, size * 0.5, 0, Math.PI * 2);
+                ctx.arc(x - size * 0.25, y - size * 0.3, size * 0.4, 0, Math.PI * 2);
+                ctx.arc(x + size * 0.25, y - size * 0.3, size * 0.4, 0, Math.PI * 2);
+                ctx.fillStyle = '#26de81';
+                ctx.fill();
+                ctx.restore();
+            }
+
+            function drawFlower(x, y, color) {
+                ctx.save();
+                ctx.translate(x, y);
+                ctx.fillStyle = '#26de81';
+                ctx.fillRect(-1.5, 0, 3, 15); // Stem
+                
+                ctx.fillStyle = color;
+                for (let i = 0; i < 5; i++) {
+                    ctx.rotate((Math.PI * 2) / 5);
+                    ctx.beginPath();
+                    ctx.ellipse(0, -5, 3, 5, 0, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+                ctx.beginPath();
+                ctx.arc(0, 0, 3, 0, Math.PI * 2);
+                ctx.fillStyle = '#feca57';
+                ctx.fill();
+                ctx.restore();
+            }
+
+            // --- Central Spawning Operations Engine ---
+            function executeSpawning(timestamp) {
+                if (timestamp - lastSpawnTime > spawnInterval) {
+                    balloons.push(new Balloon());
+                    lastSpawnTime = timestamp;
+                }
+            }
+
+            // --- Master Input/Event Parsing Handlers ---
+            function registerPopInteraction(clientX, clientY) {
+                if (gameState !== 'PLAYING') return;
+
+                const rect = canvas.getBoundingClientRect();
+                const tapX = clientX - rect.left;
+                const tapY = clientY - rect.top;
+
+                let hitRegistered = false;
+
+                // Loop backward to prioritize popping the topmost layer first
+                for (let i = balloons.length - 1; i >= 0; i--) {
+                    const b = balloons[i];
+                    if (b.isHit(tapX, tapY)) {
+                        executePopMechanics(b, i, tapX, tapY);
+                        hitRegistered = true;
+                        break; 
+                    }
+                }
+            }
+
+            function executePopMechanics(balloon, index, hitX, hitY) {
+                balloons.splice(index, 1);
+                AudioEngine.playPop();
+
+                // Compute Progression Multipliers (Combo System)
+                const now = performance.now();
+                if (now - lastPopTime < COMBO_THRESHOLD) {
+                    comboCount++;
+                } else {
+                    comboCount = 1;
+                }
+                lastPopTime = now;
+
+                let parsedBonus = 1;
+                if (comboCount >= 8) parsedBonus = 4;
+                else if (comboCount >= 5) parsedBonus = 3;
+                else if (comboCount >= 2) parsedBonus = 2;
+
+                const calculatedScoreAddition = balloon.points * parsedBonus;
+                score += calculatedScoreAddition;
+                scoreValText.textContent = score;
+
+                // Update UI Element states for combo indicators
+                if (parsedBonus > 1) {
+                    comboValText.textContent = `x${parsedBonus}`;
+                    comboContainer.classList.add('active');
+                } else {
+                    comboContainer.classList.remove('active');
+                }
+
+                // Initialize Structural Fragment Ejection (Confetti Particles)
+                for (let k = 0; k < 18; k++) {
+                    particles.push(new Particle(balloon.x + balloon.wobbleX, balloon.y, balloon.colorData.hex));
+                }
+
+                // Render Floating Alert Systems
+                const labelText = parsedBonus > 1 ? `+${calculatedScoreAddition} Combo!` : `+${calculatedScoreAddition}`;
+                floatingTexts.push(new FloatingText(
+                    balloon.x + balloon.wobbleX, 
+                    balloon.y - balloon.radius, 
+                    labelText, 
+                    balloon.colorData.hex, 
+                    parsedBonus > 1
+                ));
+            }
+
+            // Bind Native Input Hardware Channels
+            canvas.addEventListener('touchstart', function(e) {
+                // Prevent scrolling & default browser scaling
+                e.preventDefault();
+                if(e.touches.length > 0) {
+                    registerPopInteraction(e.touches[0].clientX, e.touches[0].clientY);
+                }
+            }, { passive: false });
+
+            canvas.addEventListener('mousedown', function(e) {
+                registerPopInteraction(e.clientX, e.clientY);
+            });
+
+            // --- State Transition Controllers ---
+            function startGame() {
+                AudioEngine.playUi();
+                score = 0;
+                timeRemaining = 60;
+                timeElapsed = 0;
+                spawnInterval = 1200;
+                baseSpeed = 1.5;
+                balloons = [];
+                particles = [];
+                floatingTexts = [];
+                comboCount = 0;
+                
+                scoreValText.textContent = score;
+                timerValText.textContent = timeRemaining;
+                comboContainer.classList.remove('active');
+
+                startScreen.classList.add('hidden');
+                gameoverScreen.classList.add('hidden');
+                
+                gameState = 'PLAYING';
+                lastSpawnTime = performance.now();
+                
+                clearInterval(gameTimerInterval);
+                gameTimerInterval = setInterval(() => {
+                    if (gameState === 'PLAYING') {
+                        timeRemaining--;
+                        timerValText.textContent = timeRemaining;
+                        
+                        // Handle combo decay over time gaps
+                        if (performance.now() - lastPopTime > COMBO_THRESHOLD) {
+                            comboContainer.classList.remove('active');
+                            comboCount = 0;
+                        }
+
+                        if (timeRemaining <= 0) {
+                            endGame();
+                        }
+                    }
+                }, 1000);
+            }
+
+            function endGame() {
+                gameState = 'GAMEOVER';
+                clearInterval(gameTimerInterval);
+                
+                if (score > highScore) {
+                    highScore = score;
+                    localStorage.setItem('bpop_highscore', highScore);
+                }
+
+                finalScoreText.textContent = score;
+                endHighScoreText.textContent = highScore;
+                startHighScoreText.textContent = highScore;
+                
+                gameoverScreen.classList.remove('hidden');
+                AudioEngine.playUi();
+            }
+
+            btnPlay.addEventListener('click', startGame);
+            btnRestart.addEventListener('click', startGame);
+
+            // --- Realtime Frame Interpolation Core Engine (60 FPS) ---
+            function processAnimationFrame(timestamp) {
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                
+                // Static Environmental Layer rendering always active
+                drawScenery(timestamp);
+
+                if (gameState === 'PLAYING') {
+                    // Update dynamic difficulty tracking
+                    timeElapsed += 0.016; 
+                    // Accelerate spawn cycle and upward acceleration metrics
+                    spawnInterval = Math.max(450, 1200 - (timeElapsed * 12));
+                    baseSpeed = 1.5 + (timeElapsed * 0.04);
+
+                    executeSpawning(timestamp);
+                }
+
+                // Process Balloon physics and layout mapping
+                for (let i = balloons.length - 1; i >= 0; i--) {
+                    const b = balloons[i];
+                    if (gameState === 'PLAYING') {
+                        b.update(timestamp);
+                    }
+                    b.draw();
+
+                    // Cleanup balloons that float out of bounds
+                    if (b.y < -b.radius - 50) {
+                        balloons.splice(i, 1);
+                    }
+                }
+
+                // Process Confetti Burst effects
+                for (let i = particles.length - 1; i >= 0; i--) {
+                    const p = particles[i];
+                    p.update();
+                    p.draw();
+                    if (p.alpha <= 0) {
+                        particles.splice(i, 1);
+                    }
+                }
+
+                // Process Score Text alerts
+                for (let i = floatingTexts.length - 1; i >= 0; i--) {
+                    const ft = floatingTexts[i];
+                    ft.update();
+                    ft.draw();
+                    if (ft.alpha <= 0) {
+                        floatingTexts.splice(i, 1);
+                    }
+                }
+
+                requestAnimationFrame(processAnimationFrame);
+            }
+
+            // Run graphics rendering pipeline instantly
+            requestAnimationFrame(processAnimationFrame);
+
+        })();
+    </script>
+</body>
+</html>
